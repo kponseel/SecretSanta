@@ -1,13 +1,10 @@
 import { FullEventData } from '../types';
 
-// The relative path to your PHP script. 
-// When built and deployed, api.php should be in the same root folder as index.html
-const API_URL = 'api.php';
-
 export const api = {
   save: async (data: FullEventData): Promise<boolean> => {
     try {
-      const response = await fetch(`${API_URL}?action=save`, {
+      // Use the local Node.js API route
+      const response = await fetch('/api/save', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -29,7 +26,8 @@ export const api = {
 
   get: async (id: string): Promise<FullEventData | null> => {
     try {
-      const response = await fetch(`${API_URL}?action=get&id=${id}`);
+      const cacheBuster = new Date().getTime();
+      const response = await fetch(`/api/get?id=${id}&t=${cacheBuster}`);
       
       if (!response.ok) {
         if (response.status === 404) return null;

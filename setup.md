@@ -1,48 +1,81 @@
-# Deployment Guide for OVH (Hybrid PHP/React)
+# Deployment Guide for Render (Node.js)
 
-This application uses a **React frontend** and a simple **PHP backend** to store data in JSON files.
+This guide explains how to deploy this Secret Santa application to **Render** using a GitHub repository.
 
-## 1. Build the React App
-Open your terminal in the project folder and run:
+## 1. Preparation
+Ensure you have the following files in your repository root:
+- `server.js` (The backend server)
+- `package.json` (Dependencies configuration)
 
+### Update your `package.json`
+Since Render needs to know how to build and start your app, ensure your `package.json` has these scripts and dependencies. If you don't have one, run `npm init -y` and install the packages.
+
+**Required Commands:**
 ```bash
-npm install
-npm run build
+npm install express
 ```
 
-This will create a `dist` (or `build`) folder containing the static files (index.html, js, css).
-
-## 2. Prepare Files for Upload
-You need to upload the following to your OVH server (typically in `www` or `public_html`):
-
-1.  **All contents of the `dist` folder** (index.html, assets, etc.).
-2.  **The `api.php` file** (located in the root of this project).
-
-Your server structure should look like this:
+**Recommended `package.json` structure:**
+```json
+{
+  "name": "secret-santa-app",
+  "version": "1.0.0",
+  "type": "module", 
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+    ... (other existing deps)
+  }
+}
 ```
-/www
-  ├── assets/
-  ├── index.html
-  ├── api.php
-```
+*Note: If using TypeScript/Vite, your build script should create a `dist` folder.*
 
-## 3. Set Permissions (Important!)
-For the application to save data, the PHP script needs permission to create and write to the `data` folder.
+## 2. Push to GitHub
+Commit all your files (including `server.js`, `src/`, `package.json`, `tsconfig.json`, etc.) and push them to a GitHub repository.
 
-1.  Connect to your hosting via FTP (FileZilla) or OVH File Manager.
-2.  If the `data` folder was not created automatically by the script, create it manually in the same directory as `api.php`.
-3.  **Set Permissions (CHMOD)**:
-    *   Right-click the `data` folder (or the root folder if `data` doesn't exist yet).
-    *   Select **File Permissions**.
-    *   Set the numeric value to **755** (or **777** if 755 doesn't work, though 755 is safer).
-    *   Ensure the PHP script can write files into this directory.
+## 3. Deploy on Render
 
-## 4. Verify
-1.  Open your website URL.
-2.  Create a test event.
-3.  If it gets stuck on "Saving..." or shows an error, check the permissions of the `data` folder again.
-4.  Check if a `.json` file was created inside the `data` folder on your server.
+1.  Log in to [Render.com](https://render.com).
+2.  Click **New +** and select **Web Service**.
+3.  Connect your GitHub repository.
+4.  Configure the service:
+    *   **Name**: `secret-santa-organizer`
+    *   **Region**: Closest to you.
+    *   **Branch**: `main` (or master).
+    *   **Runtime**: **Node**
+    *   **Build Command**: `npm install && npm run build`
+        *   *This installs dependencies and compiles the React app into the `dist` folder.*
+    *   **Start Command**: `npm start`
+        *   *This runs `node server.js`, which serves the `dist` folder and the API.*
+5.  Click **Create Web Service**.
 
-## Troubleshooting
-*   **404 Error on API**: Ensure `api.php` is in the same folder as `index.html`.
-*   **500 Error**: Usually a permissions issue. Check server logs or try CHMOD 777 on the `data` folder temporarily.
+## 4. Important: Data Persistence (Disks)
+**Warning:** On Render's free tier, the filesystem is **ephemeral**. This means every time you deploy or the server restarts (which happens automatically), **all files in the `data/` folder will be deleted**, and your event data will be lost.
+
+To fix this, you must use a **Disk** (paid feature) or an external database.
+
+### How to add a Disk (Paid):
+1.  Go to your Web Service settings on Render.
+2.  Click **Disks**.
+3.  Click **Add Disk**.
+4.  **Name**: `santa-data`
+5.  **Mount Path**: `/opt/render/project/src/data`
+    *   *This ensures the `data` folder server.js uses is actually stored on the persistent disk.*
+6.  **Size**: 1GB is plenty.
+
+Once the disk is attached, your JSON files will survive restarts and deployments.
+
+## 5. Local Development
+To run the full stack locally:
+
+1.  Build the frontend: `npm run build`
+2.  Start the server: `node server.js`
+3.  Go to `http://localhost:3000`
+
+Alternatively, you can use Vite proxying in `vite.config.ts` to forward `/api` requests to the Express server running on a different port, but building and serving is the simplest way to verify the exact production behavior.
