@@ -12,21 +12,17 @@ interface StepCreatedProps {
 export const StepCreated: React.FC<StepCreatedProps> = ({ details, onContinue }) => {
   const { t } = useTranslation();
   
-  // Construct the management link safely using URL API
+  // Construct the management link safely
   const getManageUrl = () => {
-    try {
-      const url = new URL(window.location.href);
-      // Clear existing query params and hash to ensure a clean link
-      url.search = '';
-      url.hash = '';
-      // Set the manage parameter
-      url.searchParams.set('manage', details.id);
-      return url.toString();
-    } catch (e) {
-      // Fallback if URL API fails
-      const base = window.location.href.split('?')[0].split('#')[0];
-      return `${base}?manage=${details.id}`;
-    }
+    // We construct the URL manually to ensure it is clean (no hash, no other params)
+    // and points to the root of the app with just the manage param.
+    const origin = window.location.origin;
+    const pathname = window.location.pathname;
+    // Remove trailing slash from pathname if present to avoid double slashes if needed, 
+    // though generally benign. 
+    const cleanPath = pathname === '/' ? '' : pathname;
+    
+    return `${origin}${cleanPath}/?manage=${encodeURIComponent(details.id)}`;
   };
 
   const manageUrl = getManageUrl();
@@ -56,7 +52,7 @@ export const StepCreated: React.FC<StepCreatedProps> = ({ details, onContinue })
                 <LinkIcon size={14} /> {t('created.link_label')}
               </label>
               <div className="flex gap-3 flex-col md:flex-row">
-                <code className="flex-1 bg-slate-100 border border-slate-200 p-4 rounded-xl text-slate-700 font-mono text-sm break-all flex items-center">
+                <code className="flex-1 bg-slate-100 border border-slate-200 p-4 rounded-xl text-slate-700 font-mono text-sm break-all flex items-center select-all">
                    {manageUrl}
                 </code>
                 <Button onClick={() => navigator.clipboard.writeText(manageUrl)} variant="outline">

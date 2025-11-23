@@ -42,11 +42,14 @@ if (!fs.existsSync(DATA_DIR)){
 app.post('/api/save', (req, res) => {
     try {
         const data = req.body;
+        console.log(`[API] Received save request.`);
+
         if (!data || !data.details || !data.details.id) {
+            console.error('[API] Save failed: Invalid data structure', data);
             return res.status(400).json({ success: false, message: 'Invalid data structure' });
         }
         
-        console.log(`[API] Saving event: ${data.details.id}`);
+        console.log(`[API] Saving event ID: ${data.details.id}`);
 
         // Sanitize ID to prevent directory traversal
         const id = data.details.id.replace(/[^a-z0-9-]/gi, '');
@@ -57,10 +60,11 @@ app.post('/api/save', (req, res) => {
                 console.error('Error saving file:', err);
                 return res.status(500).json({ success: false, message: 'Internal Server Error' });
             }
+            console.log(`[API] Event ${id} saved successfully.`);
             res.json({ success: true });
         });
     } catch (e) {
-        console.error('Server error:', e);
+        console.error('Server error during save:', e);
         res.status(500).json({ success: false });
     }
 });
@@ -71,17 +75,21 @@ app.get('/api/get', (req, res) => {
         const { id } = req.query;
         if (!id) return res.status(400).json({ error: 'Missing ID' });
         
-        console.log(`[API] Fetching event: ${id}`);
+        console.log(`[API] Fetching event ID: ${id}`);
 
         const safeId = id.toString().replace(/[^a-z0-9-]/gi, '');
         const filePath = path.join(DATA_DIR, `${safeId}.json`);
         
         if (fs.existsSync(filePath)) {
             fs.readFile(filePath, 'utf8', (err, data) => {
-                if (err) return res.status(500).json({ error: 'Read error' });
+                if (err) {
+                    console.error('[API] Error reading file:', err);
+                    return res.status(500).json({ error: 'Read error' });
+                }
                 try {
                     res.json(JSON.parse(data));
                 } catch (parseErr) {
+                    console.error('[API] Data corruption:', parseErr);
                     res.status(500).json({ error: 'Data corruption' });
                 }
             });
@@ -90,6 +98,7 @@ app.get('/api/get', (req, res) => {
             res.status(404).json({ error: 'Event not found' });
         }
     } catch (e) {
+        console.error('[API] Server error during get:', e);
         res.status(500).json({ error: 'Server error' });
     }
 });
