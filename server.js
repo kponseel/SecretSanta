@@ -46,6 +46,8 @@ app.post('/api/save', (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid data structure' });
         }
         
+        console.log(`[API] Saving event: ${data.details.id}`);
+
         // Sanitize ID to prevent directory traversal
         const id = data.details.id.replace(/[^a-z0-9-]/gi, '');
         const filePath = path.join(DATA_DIR, `${id}.json`);
@@ -69,6 +71,8 @@ app.get('/api/get', (req, res) => {
         const { id } = req.query;
         if (!id) return res.status(400).json({ error: 'Missing ID' });
         
+        console.log(`[API] Fetching event: ${id}`);
+
         const safeId = id.toString().replace(/[^a-z0-9-]/gi, '');
         const filePath = path.join(DATA_DIR, `${safeId}.json`);
         
@@ -82,6 +86,7 @@ app.get('/api/get', (req, res) => {
                 }
             });
         } else {
+            console.log(`[API] Event not found: ${safeId}`);
             res.status(404).json({ error: 'Event not found' });
         }
     } catch (e) {

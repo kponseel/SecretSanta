@@ -12,9 +12,24 @@ interface StepCreatedProps {
 export const StepCreated: React.FC<StepCreatedProps> = ({ details, onContinue }) => {
   const { t } = useTranslation();
   
-  // Construct the management link
-  const baseUrl = window.location.href.split('?')[0];
-  const manageUrl = `${baseUrl}?manage=${details.id}`;
+  // Construct the management link safely using URL API
+  const getManageUrl = () => {
+    try {
+      const url = new URL(window.location.href);
+      // Clear existing query params and hash to ensure a clean link
+      url.search = '';
+      url.hash = '';
+      // Set the manage parameter
+      url.searchParams.set('manage', details.id);
+      return url.toString();
+    } catch (e) {
+      // Fallback if URL API fails
+      const base = window.location.href.split('?')[0].split('#')[0];
+      return `${base}?manage=${details.id}`;
+    }
+  };
+
+  const manageUrl = getManageUrl();
 
   const handleEmail = () => {
     const subject = encodeURIComponent(`Secret Santa Management Link: ${details.eventName}`);

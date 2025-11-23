@@ -9,12 +9,24 @@ interface StepCreateProps {
   onCreate: (details: EventDetails) => void;
 }
 
+// Robust ID Generator
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback for older browsers or insecure contexts
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 export const StepCreate: React.FC<StepCreateProps> = ({ onCreate }) => {
   const { t } = useTranslation();
   const [step, setStep] = useState(0); // 0: Details, 1: Organizer
   
   const [details, setDetails] = useState<EventDetails>({
-    id: crypto.randomUUID(),
+    id: generateId(),
     eventName: '',
     organizerEmail: '',
     budget: '',
