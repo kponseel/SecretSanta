@@ -1,6 +1,8 @@
 
 import { Language } from "./types";
 
+export const APP_VERSION = "1.1.0";
+
 export const DEFAULT_EVENT = {
   id: "",
   eventName: "",

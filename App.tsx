@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { I18nProvider, useTranslation } from './services/i18nContext';
 import { ToastProvider, useToast } from './services/toastContext';
-import { DEFAULT_EVENT } from './constants';
+import { DEFAULT_EVENT, APP_VERSION } from './constants';
 import { AppStep, DashboardTab } from './types';
 import type { EventDetails, Participant, Pairing, Language, FullEventData } from './types';
 import { StepCreate } from './components/StepCreate';
@@ -155,6 +156,7 @@ const SecretSantaApp: React.FC = () => {
            <LanguageSwitcher current={locale} set={setLocale} />
         </div>
         <JoinView />
+        <div className="absolute bottom-2 right-2 text-red-900/10 text-[10px] pointer-events-none">v{APP_VERSION}</div>
       </div>
     );
   }
@@ -268,6 +270,11 @@ const SecretSantaApp: React.FC = () => {
         {appView === AppStep.CREATED && <StepCreated details={eventDetails} onContinue={() => setAppView(AppStep.DASHBOARD)} isLocal={storageMode === 'local'} />}
         {appView === AppStep.DASHBOARD && renderDashboardContent()}
       </main>
+      
+      {/* Version Footer */}
+      <div className="py-2 text-center text-red-900/10 text-[10px] font-mono pointer-events-none">
+        v{APP_VERSION}
+      </div>
 
       {/* Mobile Bottom Nav (Only in Dashboard) */}
       {appView === AppStep.DASHBOARD && (
