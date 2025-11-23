@@ -11,23 +11,58 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware to parse JSON bodies
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '4mb' })); // Vercel limit is ~4.5mb
 
-// Health Check Endpoint
-app.get('/health', (req, res) => {
-    res.status(200).send('OK');
-});
+// --- PERSISTENCE HELPERS ---
 
-// Serve static files from the React build directory (dist)
-const distPath = path.join(__dirname, 'dist');
-if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath));
-} else {
-  console.log('info: dist directory not found. This is expected in dev mode if vite is running separately.');
+// 1. Vercel KV (Redis) - The "Real" Cloud Storage
+// Requires KV_REST_API_URL and KV_REST_API_TOKEN env vars
+const useKV = process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
+
+async function saveToKV(id, data) {
+    if (!useKV) return false;
+    try {
+        const response = await fetch(`${process.env.KV_REST_API_URL}/set/sso_${id}`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}`,
+            },
+            body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        return result.result === 'OK';
+    } catch (e) {
+        console.error("KV Save Error", e);
+        return false;
+    }
 }
 
-// Ensure data directory exists
-const DATA_DIR = path.join(__dirname, 'data');
+async function getFromKV(id) {
+    if (!useKV) return null;
+    try {
+        const response = await fetch(`${process.env.KV_REST_API_URL}/get/sso_${id}`, {
+            headers: {
+                Authorization: `Bearer ${process.env.KV_REST_API_TOKEN}`,
+            },
+        });
+        const result = await response.json();
+        // Redis GET returns the stringified object usually, or the object if parsed by the SDK
+        if (result.result) {
+            return typeof result.result === 'string' ? JSON.parse(result.result) : result.result;
+        }
+        return null;
+    } catch (e) {
+        console.error("KV Get Error", e);
+        return null;
+    }
+}
+
+// 2. File System (Fallback)
+// On Vercel, only /tmp is writable.
+const DATA_DIR = process.env.VERCEL 
+    ? '/tmp' 
+    : path.join(__dirname, 'data');
+
 if (!fs.existsSync(DATA_DIR)){
     try {
         fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -38,31 +73,40 @@ if (!fs.existsSync(DATA_DIR)){
 
 // --- API Endpoints ---
 
+// Health Check Endpoint
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
 // Save Event Data
-app.post('/api/save', (req, res) => {
+app.post('/api/save', async (req, res) => {
     try {
         const data = req.body;
-        console.log(`[API] Received save request.`);
-
+        
         if (!data || !data.details || !data.details.id) {
-            console.error('[API] Save failed: Invalid data structure', data);
             return res.status(400).json({ success: false, message: 'Invalid data structure' });
         }
         
-        console.log(`[API] Saving event ID: ${data.details.id}`);
-
-        // Sanitize ID to prevent directory traversal
         const id = data.details.id.replace(/[^a-z0-9-]/gi, '');
+        console.log(`[API] Saving event ID: ${id}`);
+
+        // Try Cloud Storage First
+        if (useKV) {
+            await saveToKV(id, data);
+            return res.json({ success: true, mode: 'server' });
+        }
+
+        // Fallback to File System (Ephemeral on Vercel)
         const filePath = path.join(DATA_DIR, `${id}.json`);
-        
         fs.writeFile(filePath, JSON.stringify(data), (err) => {
             if (err) {
                 console.error('Error saving file:', err);
-                return res.status(500).json({ success: false, message: 'Internal Server Error' });
+                return res.status(500).json({ success: false });
             }
-            console.log(`[API] Event ${id} saved successfully.`);
-            res.json({ success: true });
+            console.log(`[API] Saved to disk (mode: ${process.env.VERCEL ? 'ephemeral' : 'persistent'})`);
+            res.json({ success: true, mode: process.env.VERCEL ? 'local' : 'server' });
         });
+
     } catch (e) {
         console.error('Server error during save:', e);
         res.status(500).json({ success: false });
@@ -70,31 +114,35 @@ app.post('/api/save', (req, res) => {
 });
 
 // Get Event Data
-app.get('/api/get', (req, res) => {
+app.get('/api/get', async (req, res) => {
     try {
         const { id } = req.query;
         if (!id) return res.status(400).json({ error: 'Missing ID' });
         
-        console.log(`[API] Fetching event ID: ${id}`);
-
         const safeId = id.toString().replace(/[^a-z0-9-]/gi, '');
+        console.log(`[API] Fetching event ID: ${safeId}`);
+
+        // Try Cloud Storage First
+        if (useKV) {
+            const data = await getFromKV(safeId);
+            if (data) return res.json(data);
+        }
+
+        // Fallback to File System
         const filePath = path.join(DATA_DIR, `${safeId}.json`);
         
         if (fs.existsSync(filePath)) {
             fs.readFile(filePath, 'utf8', (err, data) => {
                 if (err) {
-                    console.error('[API] Error reading file:', err);
                     return res.status(500).json({ error: 'Read error' });
                 }
                 try {
                     res.json(JSON.parse(data));
                 } catch (parseErr) {
-                    console.error('[API] Data corruption:', parseErr);
                     res.status(500).json({ error: 'Data corruption' });
                 }
             });
         } else {
-            console.log(`[API] Event not found: ${safeId}`);
             res.status(404).json({ error: 'Event not found' });
         }
     } catch (e) {
@@ -103,17 +151,25 @@ app.get('/api/get', (req, res) => {
     }
 });
 
-// --- Catch-All Route for SPA ---
-app.get('*', (req, res) => {
-    const indexPath = path.join(__dirname, 'dist', 'index.html');
-    if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-    } else {
-        // If index.html is missing, we might be in dev mode or build failed
-        res.status(404).send('App not built or not found. Please run npm run build.');
+// --- Static Files (Only for local dev) ---
+// Vercel handles static files via 'dist' output configuration automatically
+if (!process.env.VERCEL) {
+    const distPath = path.join(__dirname, 'dist');
+    if (fs.existsSync(distPath)) {
+        app.use(express.static(distPath));
+        app.get('*', (req, res) => {
+            res.sendFile(path.join(distPath, 'index.html'));
+        });
     }
-});
+}
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+// --- Start Server (Only if run directly) ---
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    app.listen(PORT, () => {
+        console.log(`Server is running on port ${PORT}`);
+        if(useKV) console.log("Connected to Vercel KV");
+    });
+}
+
+// Export for Vercel Serverless
+export default app;
