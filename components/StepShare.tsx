@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Pairing, EventDetails } from '../types';
 import { Button } from './ui/Button';
 import { useTranslation } from '../services/i18nContext';
+import { useToast } from '../services/toastContext';
 import { Mail, Copy, Gift, Eye, EyeOff, ExternalLink, Star } from 'lucide-react';
 
 interface StepShareProps {
@@ -11,6 +12,7 @@ interface StepShareProps {
 
 export const StepShare: React.FC<StepShareProps> = ({ pairings, eventDetails }) => {
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const [selectedViewer, setSelectedViewer] = useState<string>('');
   const [revealed, setRevealed] = useState(false);
 
@@ -29,11 +31,12 @@ export const StepShare: React.FC<StepShareProps> = ({ pairings, eventDetails }) 
     const subject = encodeURIComponent(`Secret Santa: ${eventDetails.eventName}`);
     const body = encodeURIComponent(getMessage(p));
     window.location.href = `mailto:${p.giver.email}?subject=${subject}&body=${body}`;
+    showToast("Email client opened!", "info");
   };
 
   const handleCopy = (p: Pairing) => {
     navigator.clipboard.writeText(getMessage(p));
-    alert("Message copied to clipboard!");
+    showToast(`Message for ${p.giver.name} copied!`, "success");
   };
 
   const viewerPairing = pairings.find(p => p.giver.id === selectedViewer);
@@ -66,7 +69,6 @@ export const StepShare: React.FC<StepShareProps> = ({ pairings, eventDetails }) 
         </div>
         
         <div className="p-8 min-h-[400px] flex items-center justify-center bg-stone-100 relative">
-          {/* Background pattern css can be applied here if needed, relying on simple color for now */}
           
           {viewerPairing ? (
              <div className="max-w-md w-full bg-white rounded-sm shadow-xl p-8 text-center transform transition-all relative border-t-8 border-red-700">

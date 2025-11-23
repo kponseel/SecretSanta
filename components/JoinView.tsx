@@ -2,27 +2,28 @@ import React, { useState } from 'react';
 import { Input, TextArea } from './ui/Input';
 import { Button } from './ui/Button';
 import { useTranslation } from '../services/i18nContext';
+import { useToast } from '../services/toastContext';
 import { encodeTicket } from '../services/santaService';
 import { TicketData } from '../types';
-import { Gift, Copy, Check, Ticket, Snowflake } from 'lucide-react';
+import { Gift, Copy, Ticket, Snowflake } from 'lucide-react';
 
 export const JoinView: React.FC = () => {
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const [form, setForm] = useState<TicketData>({ n: '', e: '', d: '', w: '' });
   const [ticket, setTicket] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const generate = () => {
     if (!form.n || !form.e) return;
     const code = encodeTicket(form);
     setTicket(code);
+    showToast("Ticket generated! Copy it below.", "success");
   };
 
   const copyToClipboard = () => {
     if (ticket) {
       navigator.clipboard.writeText(ticket);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      showToast(t('join.copied'), "success");
     }
   };
 
@@ -89,12 +90,12 @@ export const JoinView: React.FC = () => {
             >
               {ticket}
               <div className="absolute top-2 right-2 text-emerald-600 bg-white rounded-full p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                {copied ? <Check size={16} /> : <Copy size={16} />}
+                <Copy size={16} />
               </div>
             </div>
-            <div className={`h-6 mt-3 text-sm font-bold transition-opacity duration-300 ${copied ? 'opacity-100 text-emerald-600' : 'opacity-0'}`}>
-               {t('join.copied')}
-            </div>
+            <p className="mt-4 text-sm text-slate-500">
+              Send this code to the event organizer.
+            </p>
             <div className="mt-6">
               <Button variant="ghost" onClick={() => setTicket(null)} size="sm">
                 Edit Details

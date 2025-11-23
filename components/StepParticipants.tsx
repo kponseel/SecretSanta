@@ -3,8 +3,9 @@ import { Participant } from '../types';
 import { Input, TextArea } from './ui/Input';
 import { Button } from './ui/Button';
 import { useTranslation } from '../services/i18nContext';
+import { useToast } from '../services/toastContext';
 import { decodeTicket, parseCSV } from '../services/santaService';
-import { Users, Trash2, Plus, FileText, Ticket, UserPlus, Gift, Link as LinkIcon, Copy, Check } from 'lucide-react';
+import { Users, Trash2, Plus, FileText, Ticket, UserPlus, Gift, Link as LinkIcon, Copy } from 'lucide-react';
 
 interface StepParticipantsProps {
   participants: Participant[];
@@ -13,10 +14,10 @@ interface StepParticipantsProps {
 
 export const StepParticipants: React.FC<StepParticipantsProps> = ({ participants, setParticipants }) => {
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const [newP, setNewP] = useState<Partial<Participant>>({});
   const [importMode, setImportMode] = useState<'none' | 'ticket' | 'csv'>('none');
   const [importText, setImportText] = useState('');
-  const [linkCopied, setLinkCopied] = useState(false);
 
   // Generate a generic join link (points to #join)
   const inviteLink = `${window.location.origin}${window.location.pathname}#join`;
@@ -33,10 +34,12 @@ export const StepParticipants: React.FC<StepParticipantsProps> = ({ participants
     };
     setParticipants([...participants, p]);
     setNewP({});
+    showToast(`${p.name} added!`, 'success');
   };
 
   const removeParticipant = (id: string) => {
     setParticipants(participants.filter(p => p.id !== id));
+    showToast("Participant removed.", 'info');
   };
 
   const handleImport = () => {
@@ -54,8 +57,9 @@ export const StepParticipants: React.FC<StepParticipantsProps> = ({ participants
         setParticipants([...participants, p]);
         setImportMode('none');
         setImportText('');
+        showToast(`${data.n} imported from ticket!`, 'success');
       } else {
-        alert("Invalid Ticket Code");
+        showToast("Invalid Ticket Code", 'error');
       }
     } else if (importMode === 'csv') {
       const parsed = parseCSV(importText);
@@ -70,13 +74,13 @@ export const StepParticipants: React.FC<StepParticipantsProps> = ({ participants
       setParticipants([...participants, ...mapped]);
       setImportMode('none');
       setImportText('');
+      showToast(`${mapped.length} participants imported!`, 'success');
     }
   };
 
   const copyInvite = () => {
     navigator.clipboard.writeText(inviteLink);
-    setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2000);
+    showToast("Invite link copied!", 'success');
   };
 
   return (
@@ -95,7 +99,7 @@ export const StepParticipants: React.FC<StepParticipantsProps> = ({ participants
                {inviteLink}
             </div>
             <Button variant="secondary" size="sm" onClick={copyInvite}>
-               {linkCopied ? <Check size={18}/> : <Copy size={18}/>}
+               <Copy size={18}/>
             </Button>
          </div>
       </div>
@@ -132,7 +136,7 @@ export const StepParticipants: React.FC<StepParticipantsProps> = ({ participants
               <TextArea 
                 value={importText} 
                 onChange={e => setImportText(e.target.value)} 
-                placeholder={importMode === 'ticket' ? "Paste Base64 code here..." : "Name,Email,Group(optional)"}
+                placeholder={importMode === 'ticket' ? "Paste Ticket Code here..." : "Name,Email,Group(optional)"}
                 className="mb-4 bg-white"
                 rows={3}
               />

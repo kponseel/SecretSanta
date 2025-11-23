@@ -13,13 +13,27 @@ const PORT = process.env.PORT || 3000;
 // Middleware to parse JSON bodies
 app.use(express.json({ limit: '10mb' }));
 
+// Health Check Endpoint
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
 // Serve static files from the React build directory (dist)
-app.use(express.static(path.join(__dirname, 'dist')));
+const distPath = path.join(__dirname, 'dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+} else {
+  console.log('info: dist directory not found. This is expected in dev mode if vite is running separately.');
+}
 
 // Ensure data directory exists
 const DATA_DIR = path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)){
-    fs.mkdirSync(DATA_DIR);
+    try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+    } catch (e) {
+        console.error('Failed to create data directory:', e);
+    }
 }
 
 // --- API Endpoints ---
@@ -75,11 +89,15 @@ app.get('/api/get', (req, res) => {
     }
 });
 
-// --- Catch-All Route ---
-// For any request that doesn't match an API route or static file, serve index.html.
-// This enables client-side routing in React.
+// --- Catch-All Route for SPA ---
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    const indexPath = path.join(__dirname, 'dist', 'index.html');
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        // If index.html is missing, we might be in dev mode or build failed
+        res.status(404).send('App not built or not found. Please run npm run build.');
+    }
 });
 
 app.listen(PORT, () => {

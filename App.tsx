@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { I18nProvider, useTranslation } from './services/i18nContext';
+import { ToastProvider, useToast } from './services/toastContext';
 import { DEFAULT_EVENT } from './constants';
 import { AppStep, DashboardTab } from './types';
 import type { EventDetails, Participant, Pairing, Language, FullEventData } from './types';
@@ -15,6 +16,7 @@ import { api } from './services/api';
 
 const SecretSantaApp: React.FC = () => {
   const { t, locale, setLocale } = useTranslation();
+  const { showToast } = useToast();
   
   // State for App View
   const [appView, setAppView] = useState<AppStep>(AppStep.CREATE);
@@ -58,8 +60,7 @@ const SecretSantaApp: React.FC = () => {
           setPairings(data.pairings);
           setAppView(AppStep.DASHBOARD);
         } else {
-          console.error("Event not found");
-          // Could redirect or show error, but for now let's allow creating new
+          showToast("Event not found or expired.", "error");
         }
         setIsLoading(false);
       } else {
@@ -94,6 +95,8 @@ const SecretSantaApp: React.FC = () => {
       // Clear success message after 2 seconds
       if (success) {
         setTimeout(() => setSaveStatus('idle'), 2000);
+      } else {
+        showToast("Failed to save changes. Check connection.", "error");
       }
     }, 1000);
   };
@@ -102,7 +105,10 @@ const SecretSantaApp: React.FC = () => {
   const handleCreate = (details: EventDetails) => {
     setEventDetails(details);
     // Immediate save on create
-    api.save({ details, participants: [], pairings: [] });
+    api.save({ details, participants: [], pairings: [] }).then(success => {
+      if(success) showToast("Event created successfully!", "success");
+      else showToast("Could not save event to server.", "error");
+    });
     setAppView(AppStep.CREATED);
   };
 
@@ -112,7 +118,6 @@ const SecretSantaApp: React.FC = () => {
   };
 
   const updateParticipants = (p: React.SetStateAction<Participant[]>) => {
-    // Handle functional update
     const newVal = typeof p === 'function' ? p(participants) : p;
     setParticipants(newVal);
     saveEvent(eventDetails, newVal, pairings);
@@ -127,7 +132,7 @@ const SecretSantaApp: React.FC = () => {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-festive">
-        <div className="flex flex-col items-center gap-4">
+        <div className="flex flex-col items-center gap-4 animate-fade-in">
            <div className="w-12 h-12 border-4 border-red-200 border-t-red-700 rounded-full animate-spin"></div>
            <p className="text-red-800 font-bold animate-pulse">Loading Event...</p>
         </div>
@@ -302,7 +307,9 @@ const LanguageSwitcher: React.FC<{current: Language, set: (l: Language) => void}
 
 const AppWrapper = () => (
   <I18nProvider>
-    <SecretSantaApp />
+    <ToastProvider>
+      <SecretSantaApp />
+    </ToastProvider>
   </I18nProvider>
 );
 
