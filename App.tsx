@@ -11,7 +11,7 @@ import { StepParticipants } from './components/StepParticipants';
 import { StepDraw } from './components/StepDraw';
 import { StepShare } from './components/StepShare';
 import { JoinView } from './components/JoinView';
-import { Gift, Settings, Users, Wand2, Share2, Cloud, CloudOff, Loader2, HardDrive } from 'lucide-react';
+import { Gift, Settings, Users, Wand2, Share2, Cloud, CloudOff, Loader2, HardDrive, Smartphone } from 'lucide-react';
 import { api } from './services/api';
 
 const SecretSantaApp: React.FC = () => {
@@ -31,7 +31,8 @@ const SecretSantaApp: React.FC = () => {
   // API Status State
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'local' | 'error'>('idle');
+  const [storageMode, setStorageMode] = useState<'server' | 'local'>('server');
   
   // Refs for Debouncing
   const saveTimeoutRef = useRef<number | undefined>(undefined);
@@ -59,6 +60,8 @@ const SecretSantaApp: React.FC = () => {
           setParticipants(data.participants);
           setPairings(data.pairings);
           setAppView(AppStep.DASHBOARD);
+          // If we loaded successfully but api.get had to fallback to local, we won't know 
+          // until we save, but that's acceptable. We assume if we loaded, we are good.
         } else {
           showToast("Event not found or expired.", "error");
         }
@@ -87,16 +90,17 @@ const SecretSantaApp: React.FC = () => {
     // Save after 1 second of inactivity
     saveTimeoutRef.current = window.setTimeout(async () => {
       const data: FullEventData = { details, participants: parts, pairings: pairs };
-      const success = await api.save(data);
+      const result = await api.save(data);
       
       setIsSaving(false);
-      setSaveStatus(success ? 'saved' : 'error');
-      
-      // Clear success message after 2 seconds
-      if (success) {
-        setTimeout(() => setSaveStatus('idle'), 2000);
+      setStorageMode(result.mode);
+
+      if (result.success) {
+        setSaveStatus(result.mode === 'local' ? 'local' : 'saved');
+        setTimeout(() => setSaveStatus('idle'), 3000);
       } else {
-        showToast("Failed to save changes. Check connection.", "error");
+        setSaveStatus('error');
+        showToast("Failed to save changes.", "error");
       }
     }, 1000);
   };
@@ -105,9 +109,13 @@ const SecretSantaApp: React.FC = () => {
   const handleCreate = (details: EventDetails) => {
     setEventDetails(details);
     // Immediate save on create
-    api.save({ details, participants: [], pairings: [] }).then(success => {
-      if(success) showToast("Event created successfully!", "success");
-      else showToast("Could not save event to server.", "error");
+    api.save({ details, participants: [], pairings: [] }).then(result => {
+      setStorageMode(result.mode);
+      if(result.success) {
+        showToast(result.mode === 'local' ? "Event saved locally!" : "Event created successfully!", "success");
+      } else {
+        showToast("Could not save event.", "error");
+      }
     });
     setAppView(AppStep.CREATED);
   };
@@ -200,7 +208,7 @@ const SecretSantaApp: React.FC = () => {
             <div className="flex items-center gap-4">
                {/* Save Status Indicator */}
                {appView === AppStep.DASHBOARD && (
-                  <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-lg bg-black/20 text-xs font-medium transition-all">
+                  <div className={`hidden md:flex items-center gap-2 px-3 py-1 rounded-lg bg-black/20 text-xs font-medium transition-all ${saveStatus === 'local' ? 'text-amber-200 bg-amber-900/40' : ''}`}>
                      {isSaving ? (
                        <>
                          <Loader2 size={14} className="animate-spin"/> Saving...
@@ -209,13 +217,18 @@ const SecretSantaApp: React.FC = () => {
                        <>
                          <Cloud size={14} className="text-emerald-300"/> Saved
                        </>
+                     ) : saveStatus === 'local' ? (
+                        <>
+                          <Smartphone size={14} className="text-amber-300"/> Saved (Device)
+                        </>
                      ) : saveStatus === 'error' ? (
                        <>
                          <CloudOff size={14} className="text-red-300"/> Offline
                        </>
                      ) : (
                        <>
-                         <HardDrive size={14} className="opacity-50"/> Ready
+                         {storageMode === 'local' ? <Smartphone size={14} className="opacity-50 text-amber-200"/> : <HardDrive size={14} className="opacity-50"/>}
+                         <span className="opacity-80">Ready</span>
                        </>
                      )}
                   </div>
@@ -252,7 +265,7 @@ const SecretSantaApp: React.FC = () => {
       {/* Main Content */}
       <main className={`flex-1 w-full mx-auto ${appView === AppStep.CREATE ? 'max-w-4xl p-6 flex flex-col justify-center' : 'max-w-5xl p-4 pb-28 md:pb-12 mt-4 md:mt-8'}`}>
         {appView === AppStep.CREATE && <StepCreate onCreate={handleCreate} />}
-        {appView === AppStep.CREATED && <StepCreated details={eventDetails} onContinue={() => setAppView(AppStep.DASHBOARD)} />}
+        {appView === AppStep.CREATED && <StepCreated details={eventDetails} onContinue={() => setAppView(AppStep.DASHBOARD)} isLocal={storageMode === 'local'} />}
         {appView === AppStep.DASHBOARD && renderDashboardContent()}
       </main>
 

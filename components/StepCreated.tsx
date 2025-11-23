@@ -2,26 +2,22 @@ import React from 'react';
 import { EventDetails } from '../types';
 import { Button } from './ui/Button';
 import { useTranslation } from '../services/i18nContext';
-import { CheckCircle, Mail, ArrowRight, Link as LinkIcon, Cloud } from 'lucide-react';
+import { CheckCircle, Mail, ArrowRight, Link as LinkIcon, Cloud, AlertTriangle, Smartphone } from 'lucide-react';
 
 interface StepCreatedProps {
   details: EventDetails;
   onContinue: () => void;
+  isLocal?: boolean;
 }
 
-export const StepCreated: React.FC<StepCreatedProps> = ({ details, onContinue }) => {
+export const StepCreated: React.FC<StepCreatedProps> = ({ details, onContinue, isLocal }) => {
   const { t } = useTranslation();
   
   // Construct the management link safely
   const getManageUrl = () => {
-    // We construct the URL manually to ensure it is clean (no hash, no other params)
-    // and points to the root of the app with just the manage param.
     const origin = window.location.origin;
     const pathname = window.location.pathname;
-    // Remove trailing slash from pathname if present to avoid double slashes if needed, 
-    // though generally benign. 
     const cleanPath = pathname === '/' ? '' : pathname;
-    
     return `${origin}${cleanPath}/?manage=${encodeURIComponent(details.id)}`;
   };
 
@@ -46,6 +42,20 @@ export const StepCreated: React.FC<StepCreatedProps> = ({ details, onContinue })
         </div>
 
         <div className="p-8 md:p-12 space-y-8">
+           
+           {/* Local Storage Warning */}
+           {isLocal && (
+             <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-r-xl flex items-start gap-3">
+               <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20} />
+               <div>
+                 <h4 className="font-bold text-amber-900 text-sm">Server Unreachable - Local Mode</h4>
+                 <p className="text-amber-700 text-xs mt-1 leading-relaxed">
+                   Your event is saved to <strong>this device only</strong>. The management link below will not work on other computers or phones. Do not clear your browser cache!
+                 </p>
+               </div>
+             </div>
+           )}
+
            {/* Link Section */}
            <div className="space-y-2">
               <label className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
@@ -76,10 +86,12 @@ export const StepCreated: React.FC<StepCreatedProps> = ({ details, onContinue })
                  <Button fullWidth variant="secondary" onClick={handleEmail}>
                     <Mail size={18} className="mr-2" /> {t('created.email_btn')}
                  </Button>
-                 <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100 flex gap-2 items-start text-left">
-                   <Cloud size={16} className="text-emerald-500 shrink-0 mt-0.5" />
-                   <p className="text-xs text-emerald-800 leading-relaxed font-medium">
-                     Your event is saved in our database. You can access the dashboard from any device using your management link.
+                 <div className={`p-3 rounded-xl border flex gap-2 items-start text-left ${isLocal ? 'bg-amber-50 border-amber-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                   {isLocal ? <Smartphone size={16} className="text-amber-500 shrink-0 mt-0.5" /> : <Cloud size={16} className="text-emerald-500 shrink-0 mt-0.5" />}
+                   <p className={`text-xs leading-relaxed font-medium ${isLocal ? 'text-amber-800' : 'text-emerald-800'}`}>
+                     {isLocal 
+                       ? "Data is stored in your browser. You can still import tickets and run the draw, but remote management is disabled." 
+                       : "Your event is saved in our database. You can access the dashboard from any device using your management link."}
                    </p>
                  </div>
               </div>
